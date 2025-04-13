@@ -2,11 +2,70 @@ from PIL import Image
 from io import BytesIO
 import base64
 import torch
+import torch.nn as nn
 import math
 import ast
 
 from transformers import StoppingCriteria
 from llava.constants import IMAGE_TOKEN_INDEX
+
+class DepthConvFusion(nn.Module):
+    """
+    Fuse RGB + D channels before CLIP encoder
+    """
+    def __init__(self):
+        super().__init__()
+        self.depth_fuser = nn.Sequential(
+            nn.Conv2d(4, 32, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(32, 3, kernel_size=1)
+        )
+
+    def forward(self, rgbd):
+        return self.depth_fuser(rgbd)
+    
+class DepthResidualFusion(nn.Module):
+    """
+    Add D residual to unaltered RGB Channels
+    """
+    def __init__(self):
+        super().__init__()
+        self.depth_residual = nn.Sequential(
+            nn.Conv2d(1, 8, kernel_size=1, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(8, 3, kernel_size=1)
+        )
+    
+    def forward(self, rgb, depth):
+        residual = self.depth_residual(depth)
+        return rgb + residual
+    
+class DepthFusionWrapper(nn.Module):
+    def __init__(self, method="residual"):
+        super().__init__()
+        assert method in ["residual", "conv", "none"]
+        self.method = method
+
+        if method == "residual":
+            self.module = DepthResidualFusion()
+        elif method == "conv":
+            self.module = DepthConvFusion()
+        else:
+            self.module = None 
+
+    def forward(self, rgb, depth):
+
+        match self.method:
+            
+            case "residual":
+                return self.module(rgb, depth)
+            
+            case "conv":
+                rgbd = torch.cat([rgb, depth], dim=1)
+                return self.module(rgbd)
+            
+            case _:
+                return rgb
 
 
 def select_best_resolution(original_size, possible_resolutions):

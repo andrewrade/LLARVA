@@ -23,7 +23,7 @@ from .multimodal_projector.builder import build_vision_projector
 
 from llava.constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_PATCH_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
 
-from llava.mm_utils import get_anyres_image_grid_shape
+from llava.mm_utils import get_anyres_image_grid_shape, DepthFusionWrapper
 
 
 class LlavaMetaModel:
@@ -39,6 +39,9 @@ class LlavaMetaModel:
                 self.image_newline = nn.Parameter(
                     torch.empty(config.hidden_size, dtype=self.dtype)
                 )
+        
+        self.depth_fusion = DepthFusionWrapper(method=config.depth_fusion_method)
+        
 
     def get_vision_tower(self):
         vision_tower = getattr(self, 'vision_tower', None)
@@ -138,7 +141,16 @@ class LlavaMetaForCausalLM(ABC):
         return self.get_model().get_vision_tower()
 
     def encode_images(self, images):
-        image_features = self.get_model().get_vision_tower()(images)
+
+        rgb = images[:, :3, :, :]
+        depth = images[:, 3:, :, :]
+
+        if hasattr(self, 'depth_fusion'):
+            encoder_inputs = self.depth_fusion(rgb, depth)
+        else:
+            encoder_inputs = rgb
+
+        image_features = self.get_model().get_vision_tower()(encoder_inputs)
         image_features = self.get_model().mm_projector(image_features)
         return image_features
 
