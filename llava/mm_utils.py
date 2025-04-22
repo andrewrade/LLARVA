@@ -16,13 +16,25 @@ class DepthConvFusion(nn.Module):
     def __init__(self):
         super().__init__()
         
-        self.rgb_encoder = nn.Sequential(
+        self.rgb_feature_extractor = nn.Sequential(
             nn.Conv2d(3, 24, kernel_size=3, padding=1),
             nn.ReLU(),
             nn.BatchNorm2d(24)
         )
 
-        self.depth_encoder = nn.Sequential(
+        with torch.no_grad():
+            # Iinit to identity kernel to preserve original 
+            # RGB features
+            conv = self.rgb_feature_extractor[0]             
+            for i in range(3):
+                
+                # 3 input channels --> 24 output channels
+                for j in range(8):
+                    out_channel = i*8 + j
+                    conv.weight[out_channel, i, 1, 1] = 1.0
+                conv.bias.zero_()  
+
+        self.depth_feature_extractor = nn.Sequential(
             nn.Conv2d(1, 8, kernel_size=3, padding=1),
             nn.ReLU(),
             nn.BatchNorm2d(8)
@@ -35,8 +47,8 @@ class DepthConvFusion(nn.Module):
         )
 
     def forward(self, rgb, depth):
-        rgb_out = self.rgb_encoder(rgb)
-        depth_out = self.depth_encoder(depth)
+        rgb_out = self.rgb_feature_extractor(rgb)
+        depth_out = self.depth_feature_extractor(depth)
         fused = torch.cat([rgb_out, depth_out], dim=1)
         output = self.fusion(fused)
         return output
