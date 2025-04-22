@@ -15,24 +15,31 @@ class DepthConvFusion(nn.Module):
     """
     def __init__(self):
         super().__init__()
+        
         self.rgb_encoder = nn.Sequential(
             nn.Conv2d(3, 24, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.Conv2d(24, 3, kernel_size=1)
+            nn.BatchNorm2d(24)
         )
 
         self.depth_encoder = nn.Sequential(
             nn.Conv2d(1, 8, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.Conv2d(8, 3, kernel_size=1)
+            nn.BatchNorm2d(8)
+        )
+
+        self.fusion = nn.Sequential(
+            nn.Conv2d(32, 16, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(16, 3, kernel_size=1)  # Final RGB output for CLIP
         )
 
     def forward(self, rgb, depth):
         rgb_out = self.rgb_encoder(rgb)
         depth_out = self.depth_encoder(depth)
-
-        fused = rgb_out + depth_out
-        return fused
+        fused = torch.cat([rgb_out, depth_out], dim=1)
+        output = self.fusion(fused)
+        return output
     
 class DepthResidualFusion(nn.Module):
     """
