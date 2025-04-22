@@ -55,8 +55,20 @@ def eval_model(args):
 
         input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).cuda()
 
-        image = Image.open(os.path.join(args.image_folder, image_file)).convert('RGB')
+        #image = Image.open(os.path.join(args.image_folder, image_file)).convert('RGB')
+
+        image_with_alpha = Image.open(os.path.join(args.image_folder, image_file))
+        image = image_with_alpha.convert('RGB')
+        
+        depth = None
+        if image_with_alpha.mode == 'RGBA':
+            depth = image_with_alpha.split()[3]
+        
         image_tensor = process_images([image], image_processor, model.config)[0]
+
+        if depth is not None:
+            depth_tensor = image_processor.preprocess(depth.convert('L'), return_tensors='pt')['pixel_values'][0][0:1]
+            image_tensor = torch.cat([image_tensor, depth_tensor], dim=0)
 
         with torch.inference_mode():
             output_ids = model.generate(

@@ -37,6 +37,8 @@ from llava.mm_utils import tokenizer_image_token
 
 from PIL import Image
 
+from mm_utils import DepthFusionWrapper
+
 
 local_rank = None
 
@@ -699,7 +701,20 @@ class LazySupervisedDataset(Dataset):
             image_file = self.list_data_dict[i]['image']
             image_folder = self.data_args.image_folder
             processor = self.data_args.image_processor
-            image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
+            
+            ##############################
+            # Modify to include depth in alpha channel
+            #image = Image.open(os.path.join(image_folder, image_file)).convert('RGB')
+            
+            image_with_alpha = Image.open(os.path.join(image_folder, image_file))
+            image = image_with_alpha.convert('RGB')
+            depth = None
+            if image_with_alpha.mode == 'RGBA':
+                # Extract depth from alpha channel
+                depth = image_with_alpha.split()[3] 
+            
+            #############################
+            
             if self.data_args.image_aspect_ratio == 'pad':
                 def expand2square(pil_img, background_color):
                     width, height = pil_img.size
@@ -733,6 +748,9 @@ class LazySupervisedDataset(Dataset):
         # image exist in the data
         if 'image' in self.list_data_dict[i]:
             data_dict['image'] = image
+            if depth is not None:
+                depth_tensor = processor.preprocess(depth.convert('L', return_tensors='pt'))['pixel_values'][0][0:1]
+                data_dict['depth'] = depth_tensor
         elif self.data_args.is_multimodal:
             # image does not exist in the data, but the model is multimodal
             crop_size = self.data_args.image_processor.crop_size
@@ -765,11 +783,24 @@ class DataCollatorForSupervisedDataset(object):
         )
 
         if 'image' in instances[0]:
+            
             images = [instance['image'] for instance in instances]
             if all(x is not None and x.shape == images[0].shape for x in images):
                 batch['images'] = torch.stack(images)
             else:
                 batch['images'] = images
+            
+            # Handle depth if available
+            if 'depth' in instances[0]:
+                depths = [instance.get('depth') for instance in instances]
+                images = [instance['image'] for instance in instances]
+                
+                fused = [torch.cat([img, d], dim=0) for img, d in zip(images, depths)]
+                
+                if all(x.shape == fused[0].shape for x in fused):
+                    batch['images'] = torch.stack(fused)
+                else:
+                    batch['images'] = fused
 
         return batch
 
@@ -828,6 +859,24 @@ def train(attn_implementation=None):
         ))
 
     if model_args.vision_tower is not None:
+
+        model.get_model().initialize_vision_modules(
+        model_args=model_args,
+        fsdp=training_args.fsdp
+        )
+    
+        vision_tower = model.get_vision_tower()
+        vision_tower.to(dtype=torch.bfloat16 if training_args.bf16 else torch.float16, device=training_args.device)
+    
+    # Initialize depth fusion module if specified
+        if model_args.depth_fusion_method != "none":
+            depth_fusion = DepthFusionWrapper(method=model_args.depth_fusion_method)
+            depth_fusion.to(dtype=compute_dtype, device=training_args.device)
+            
+            model.get_model().depth_fusion = depth_fusion  # for encoder_images()
+            model.depth_fusion = depth_fusion              # for safety if accessed at top level
+
+
         if 'mpt' in model_args.model_name_or_path:
             config = transformers.AutoConfig.from_pretrained(model_args.model_name_or_path, trust_remote_code=True)
             config.attn_config['attn_impl'] = training_args.mpt_attn_impl

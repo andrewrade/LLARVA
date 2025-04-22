@@ -31,8 +31,7 @@ class DepthConvFusion(nn.Module):
                 # 3 input channels --> 24 output channels
                 for j in range(8):
                     out_channel = i*8 + j
-                    conv.weight[out_channel, i, 1, 1] = 1.0
-                conv.bias.zero_()  
+                    conv.weight[out_channel, i, 1, 1] = 1.0 
 
         self.depth_feature_extractor = nn.Sequential(
             nn.Conv2d(1, 8, kernel_size=3, padding=1),
@@ -82,7 +81,10 @@ class DepthFusionWrapper(nn.Module):
         else:
             self.module = None 
 
-    def forward(self, rgb, depth):
+    def forward(self, rgbd):
+
+        rgb = rgbd[:, :3, :, :]
+        depth = rgbd[:, 3:, :, :]
 
         match self.method:
             

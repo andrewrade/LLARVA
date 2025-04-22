@@ -145,10 +145,7 @@ class LlavaMetaForCausalLM(ABC):
         rgb = images[:, :3, :, :]
         depth = images[:, 3:, :, :]
 
-        if hasattr(self, 'depth_fusion'):
-            encoder_inputs = self.depth_fusion(rgb, depth)
-        else:
-            encoder_inputs = rgb
+        encoder_inputs = self.depth_fusion(rgb, depth) if hasattr(self, 'depth_fusion') else rgb
 
         image_features = self.get_model().get_vision_tower()(encoder_inputs)
         image_features = self.get_model().mm_projector(image_features)
