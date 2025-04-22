@@ -16,9 +16,9 @@ class DepthConvFusion(nn.Module):
     def __init__(self):
         super().__init__()
         self.rgb_encoder = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=3, padding=1),
+            nn.Conv2d(3, 24, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.Conv2d(32, 3, kernel_size=1)
+            nn.Conv2d(24, 3, kernel_size=1)
         )
 
         self.depth_encoder = nn.Sequential(
