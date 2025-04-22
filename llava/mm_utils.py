@@ -15,14 +15,24 @@ class DepthConvFusion(nn.Module):
     """
     def __init__(self):
         super().__init__()
-        self.depth_fuser = nn.Sequential(
-            nn.Conv2d(4, 32, kernel_size=3, padding=1),
+        self.rgb_encoder = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=3, padding=1),
             nn.ReLU(),
             nn.Conv2d(32, 3, kernel_size=1)
         )
 
-    def forward(self, rgbd):
-        return self.depth_fuser(rgbd)
+        self.depth_encoder = nn.Sequential(
+            nn.Conv2d(1, 8, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(8, 3, kernel_size=1)
+        )
+
+    def forward(self, rgb, depth):
+        rgb_out = self.rgb_encoder(rgb)
+        depth_out = self.depth_encoder(depth)
+
+        fused = rgb_out + depth_out
+        return fused
     
 class DepthResidualFusion(nn.Module):
     """
@@ -31,7 +41,7 @@ class DepthResidualFusion(nn.Module):
     def __init__(self):
         super().__init__()
         self.depth_residual = nn.Sequential(
-            nn.Conv2d(1, 8, kernel_size=1, padding=1),
+            nn.Conv2d(1, 8, kernel_size=1),
             nn.ReLU(),
             nn.Conv2d(8, 3, kernel_size=1)
         )
@@ -61,8 +71,7 @@ class DepthFusionWrapper(nn.Module):
                 return self.module(rgb, depth)
             
             case "conv":
-                rgbd = torch.cat([rgb, depth], dim=1)
-                return self.module(rgbd)
+                return self.module(rgb, depth)
             
             case _:
                 return rgb
