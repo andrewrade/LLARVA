@@ -3,7 +3,22 @@ import numpy as np
 import json
 import os
 from tqdm import tqdm
+from PIL import Image
 import argparse
+
+def load_rgbd_with_alpha(rgb_path, depth_path):
+    """
+    Combines RGB channels + corresponding depth map into a single png
+    Loads depth map into png alpha channel
+    """
+    rgb = Image.open(rgb_path).convert("RGB")
+    depth = Image.open(depth_path).convert("L")  # Grayscale depth
+    rgb_np = np.array(rgb)
+    depth_np = np.array(depth)
+
+    # Add depth map to alpha channel
+    rgba = np.dstack((rgb_np, depth_np)).astype(np.uint8)
+    return Image.fromarray(rgba)
 
 def get_curr_action(item):
     joint_velocities = getattr(item, "joint_velocities")
@@ -75,7 +90,21 @@ def generate(args):
                     prev_5_positions.append(curr_position)
                     prev_5_positions.pop(0)
 
+                    #######
+                    rgb_rel_path = f"{episode}/front_rgb/{counter}.png"
+                    depth_rel_path = f"{episode}/depth_front/{counter}.png"
+                    rgb_abs_path = os.path.join(simulation_path, rgb_rel_path)
+                    depth_abs_path = os.path.join(simulation_path, depth_rel_path)
+
+                    img = load_rgbd_with_alpha(rgb_abs_path, depth_abs_path)
+
+                    save_path = os.path.join(args.data_path, task, "rgba_front", f"{counter}.png")
+                    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                    img.save(save_path)
+
                     image_path = f"{episode}/{camera_view}/{counter}.png"
+                    #######
+                    
                     final_json_content.append(
                         get_curr_dict(total_count, image_path, prev_5_positions, curr_action, variation_des[0]))
                     print(variation_des[0])
