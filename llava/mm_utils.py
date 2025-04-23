@@ -67,9 +67,9 @@ class DepthResidualFusion(nn.Module):
     def __init__(self):
         super().__init__()
         self.depth_residual = nn.Sequential(
-            nn.Conv2d(1, 8, kernel_size=1),
+            nn.Conv2d(1, 8, kernel_size=3),
             nn.ReLU(),
-            nn.Conv2d(8, 3, kernel_size=1)
+            nn.Conv2d(8, 3, kernel_size=3)
         )
     
     def forward(self, rgb, depth):
