@@ -33,11 +33,9 @@ from llava.train.llava_trainer import LLaVATrainer
 
 from llava import conversation as conversation_lib
 from llava.model import *
-from llava.mm_utils import tokenizer_image_token
+from llava.mm_utils import tokenizer_image_token, DepthFusionWrapper
 
 from PIL import Image
-
-from mm_utils import DepthFusionWrapper
 
 
 local_rank = None
