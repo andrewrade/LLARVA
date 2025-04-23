@@ -40,8 +40,6 @@ class LlavaMetaModel:
                     torch.empty(config.hidden_size, dtype=self.dtype)
                 )
         
-        self.depth_fusion = DepthFusionWrapper(method=config.depth_fusion_method)
-        
 
     def get_vision_tower(self):
         vision_tower = getattr(self, 'vision_tower', None)

@@ -873,8 +873,7 @@ def train(attn_implementation=None):
             depth_fusion = DepthFusionWrapper(method=model_args.depth_fusion_method)
             depth_fusion.to(dtype=compute_dtype, device=training_args.device)
             
-            model.get_model().depth_fusion = depth_fusion  # for encoder_images()
-            model.depth_fusion = depth_fusion              # for safety if accessed at top level
+            model.get_model().depth_fusion = depth_fusion 
 
 
         if 'mpt' in model_args.model_name_or_path:
