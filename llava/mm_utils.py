@@ -22,16 +22,7 @@ class DepthConvFusion(nn.Module):
             nn.BatchNorm2d(24)
         )
 
-        with torch.no_grad():
-            # Iinit to identity kernel to preserve original 
-            # RGB features
-            conv = self.rgb_feature_extractor[0]             
-            for i in range(3):
-                
-                # 3 input channels --> 24 output channels
-                for j in range(8):
-                    out_channel = i*8 + j
-                    conv.weight[out_channel, i, 1, 1] = 1.0 
+        self._initialize_identity_kernels()
 
         self.depth_feature_extractor = nn.Sequential(
             nn.Conv2d(1, 8, kernel_size=3, padding=1),
@@ -44,6 +35,28 @@ class DepthConvFusion(nn.Module):
             nn.ReLU(),
             nn.Conv2d(16, 3, kernel_size=1)  # Final RGB output for CLIP
         )
+
+    def _initialize_identity_kernels(self):
+        with torch.no_grad():
+            # Get the convolutional layer
+            conv = self.rgb_feature_extractor[0]
+            
+            # Reset all weights to zero first
+            conv.weight.zero_()
+            
+            # For each RGB input channel
+            for i in range(3):
+                # Create 8 output channels per input channel (3*8 = 24 total)
+                for j in range(8):
+                    out_channel = i*8 + j
+                    # Set only the center weight to 1.0 (identity mapping)
+                    # For a 3x3 kernel, the center is at position (1,1)
+                    conv.weight[out_channel, i, 1, 1] = 1.0
+            
+            # Optional: initialize fusion layer to better preserve identity
+            final_conv = self.rgb_feature_extractor[-1]
+            final_conv.weight.zero_()
+            
 
     def forward(self, rgb, depth):
         rgb_out = self.rgb_feature_extractor(rgb)
