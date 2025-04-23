@@ -37,25 +37,22 @@ class DepthConvFusion(nn.Module):
         )
 
     def _initialize_identity_kernels(self):
+        
+        # Identity init for RGB conv: zero weights & biases, then set center weights
         with torch.no_grad():
-            # Get the convolutional layer
-            conv = self.rgb_feature_extractor[0]
             
-            # Reset all weights to zero first
+            conv = self.rgb_feature_extractor[0]
             conv.weight.zero_()
             
-            # For each RGB input channel
-            for i in range(3):
-                # Create 8 output channels per input channel (3*8 = 24 total)
-                for j in range(8):
-                    out_channel = i*8 + j
-                    # Set only the center weight to 1.0 (identity mapping)
-                    # For a 3x3 kernel, the center is at position (1,1)
-                    conv.weight[out_channel, i, 1, 1] = 1.0
+            kh, kw = conv.kernel_size
+            ch, cw = kh // 2, kw // 2
             
-            # Optional: initialize fusion layer to better preserve identity
-            final_conv = self.rgb_feature_extractor[-1]
-            final_conv.weight.zero_()
+            # For each RGB channel
+            for i in range(3):
+                for j in range(8):
+                    out_ch = i * 8 + j
+                    conv.weight[out_ch, i, ch, cw] = 1.0
+                
             
 
     def forward(self, rgb, depth):
@@ -82,7 +79,9 @@ class DepthResidualFusion(nn.Module):
         return rgb + residual
     
 class DepthFusionWrapper(nn.Module):
+    
     def __init__(self, method="residual"):
+        
         super().__init__()
         assert method in ["residual", "conv", "none"]
         self.method = method
@@ -99,16 +98,10 @@ class DepthFusionWrapper(nn.Module):
         rgb = rgbd[:, :3, :, :]
         depth = rgbd[:, 3:, :, :]
 
-        match self.method:
-            
-            case "residual":
-                return self.module(rgb, depth)
-            
-            case "conv":
-                return self.module(rgb, depth)
-            
-            case _:
-                return rgb
+        if self.method in ("residual", "conv"):
+            return self.module(rgb, depth)
+        else:
+            return rgb
 
 
 def select_best_resolution(original_size, possible_resolutions):
