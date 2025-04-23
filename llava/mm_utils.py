@@ -19,7 +19,7 @@ class DepthConvFusion(nn.Module):
         self.rgb_feature_extractor = nn.Sequential(
             nn.Conv2d(3, 24, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.BatchNorm2d(24)
+            #nn.BatchNorm2d(24)
         )
 
         self._initialize_identity_kernels()
