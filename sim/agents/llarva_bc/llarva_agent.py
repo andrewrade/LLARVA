@@ -69,6 +69,7 @@ class LLaRVAAgent(Agent):
 
         return noisy_action
 
+
     def act(self, step: int, observation: dict, task_goal: str,
             deterministic=False) -> ActResult:
 
@@ -112,8 +113,12 @@ class LLaRVAAgent(Agent):
             0).to(self.device)
 
         image = np.transpose(observation['front_rgb'][-1],(1,2,0))
-        image = Image.fromarray(image)
+        image = Image.fromarray(image)       
         image_tensor = process_images([image], self.image_processor, self.model.config)[0]
+
+        depth = np.transpose(observation['depth_front'][-1])
+        depth_tensor = torch.from_numpy(depth).to(device=self.device)
+        image_tensor = torch.cat(image_tensor, depth_tensor, dim=0) # Concatenate depth channel to front observation
 
         debug = True # if you want save the vis
         if debug:
